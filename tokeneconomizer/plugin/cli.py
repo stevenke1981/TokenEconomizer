@@ -154,6 +154,12 @@ def cmd_status(args):
           f"{accounting.fmt_tokens(ledger['effective_tokens'])} effective tokens, plugin "
           f"overhead {accounting.fmt_tokens(ledger['overhead_tokens'])} "
           f"({ledger['overhead_frac']:.1%})")
+    cov = ledger["pricing"]
+    fb = cov["by_source"].get("fallback")
+    if fb:
+        print(f"  pricing      {fb['sessions']} session(s) priced on the fallback curve "
+              f"({cov['fallback_frac']:.1%} of effective tokens); not in the price table: "
+              f"{', '.join(cov['fallback_models'])}")
     i = out["microskills"]
     print(f"  microskills  {i['injected_lines']} fact(s) injected at session start "
           f"({i['sessions_folded']} sessions learned from)")

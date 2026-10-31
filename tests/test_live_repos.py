@@ -645,3 +645,21 @@ def test_a_change_where_the_state_is_read_only_is_refused_whole(tmp_path, env, m
     assert not os.path.exists(os.path.join(os.path.dirname(st.base), "config.json"))
     # ... and reading still works there
     assert cli.main(["--host", "claude", "--cwd", repo_dir, "toolprune"]) == 0
+
+
+def test_status_names_the_sessions_priced_on_the_fallback_curve(tmp_path, env, monkeypatch,
+                                                                 capsys):
+    a = git_repo(str(tmp_path / "a"), "https://github.com/o/a")
+    for k, v in env.items():
+        monkeypatch.setenv(k, v)
+    st = state(env, paths.repo_identity(a, env).key)
+    st.append("ledger.jsonl", {"kind": "session", "model": "claude-sonnet-4-5",
+                               "effective_tokens": 1000.0, "priced_by": "model"})
+    assert cli.main(["--host", "claude", "--cwd", a, "status"]) == 0
+    assert "pricing " not in capsys.readouterr().out
+    st.append("ledger.jsonl", {"kind": "session", "model": "new-model-x",
+                               "effective_tokens": 3000.0, "priced_by": "fallback"})
+    assert cli.main(["--host", "claude", "--cwd", a, "status"]) == 0
+    out = capsys.readouterr().out
+    assert ("pricing      1 session(s) priced on the fallback curve (75.0% of effective "
+            "tokens); not in the price table: new-model-x") in out

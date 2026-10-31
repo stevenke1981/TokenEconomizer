@@ -50,7 +50,33 @@ def summarize(records):
         "aborts": sum(int(r.get("aborts") or 0) for r in sessions),
         "turns": sum(int(r.get("turns") or 0) for r in sessions),
         "injected_sessions": sum(1 for r in sessions if r.get("injected_chars")),
+        "pricing": pricing_coverage(sessions),
     }
+
+
+def pricing_coverage(sessions):
+    """How the folded sessions were priced: session counts and effective tokens by `priced_by`
+    ("model", "fallback", "no_usage"; older records without the field count as "unknown"), and
+    effective tokens by model. Each model's tokens are relative to that model's own fresh-input
+    price, so the per-model figures, not their sum, are what a currency conversion starts from."""
+    by_source, by_model, fallback_models = {}, {}, set()
+    for r in sessions:
+        eff = r.get("effective_tokens")
+        eff = eff if isinstance(eff, (int, float)) else 0
+        src = r.get("priced_by") or ("unknown" if eff else "no_usage")
+        row = by_source.setdefault(src, {"sessions": 0, "effective_tokens": 0})
+        row["sessions"] += 1
+        row["effective_tokens"] += eff
+        if src == "fallback":
+            fallback_models.add(r.get("model") or "unknown")
+        if eff:
+            model = r.get("model") or "unknown"
+            by_model[model] = by_model.get(model, 0) + eff
+    total = sum(v["effective_tokens"] for v in by_source.values())
+    fb = by_source.get("fallback", {}).get("effective_tokens", 0)
+    return {"by_source": by_source, "by_model": by_model,
+            "fallback_models": sorted(fallback_models),
+            "fallback_frac": (fb / total) if total else 0.0}
 
 
 def fmt_tokens(n):
