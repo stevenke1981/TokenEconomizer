@@ -4,7 +4,8 @@ Every mechanism reads a finished session through this package, so the format kno
 here and nowhere else:
 
   * `calls`    -- `load_trajectory`: any agent's log as ordered `(name, args, result, ok)` calls;
-                  `call_cwds`, `tool_usage`, `strip_rtk_prefix`;
+                  `call_cwds`, `load_trajectory_with_cwds`, `tool_usage`,
+                  `strip_rtk_prefix`;
   * `catalog`  -- the tool list a session loaded, from whichever source the agent publishes;
   * `claude`, `codex`, `copilot`, `opencode`, `pi` -- each agent's own session file: usage,
                   metadata, prompt-turns, and the conversions that let the readers above handle
@@ -12,7 +13,8 @@ here and nowhere else:
 
 Stdlib only.
 """
-from .calls import RTK_PREFIX_RE, call_cwds, load_trajectory, strip_rtk_prefix, tool_usage
+from .calls import (RTK_PREFIX_RE, call_cwds, load_trajectory, load_trajectory_with_cwds,
+                    strip_rtk_prefix, tool_usage)
 from .catalog import (CODEX_DEFAULT_TOOL_CATALOG, catalog_sources, parse_catalog,
                       parse_catalog_with_source, parse_tool_catalog, parse_tool_catalog_claude,
                       parse_tool_catalog_flat, parse_tool_names_copilot)
@@ -30,7 +32,8 @@ from .pi import (pi_active_branch, pi_json_reply, pi_prompt_count, pi_session_he
                  pi_session_to_claude, pi_session_usage)
 
 __all__ = [
-    "RTK_PREFIX_RE", "call_cwds", "load_trajectory", "strip_rtk_prefix", "tool_usage",
+    "RTK_PREFIX_RE", "call_cwds", "load_trajectory", "load_trajectory_with_cwds",
+    "strip_rtk_prefix", "tool_usage",
     "CODEX_DEFAULT_TOOL_CATALOG", "catalog_sources", "parse_catalog", "parse_catalog_with_source",
     "parse_tool_catalog", "parse_tool_catalog_claude", "parse_tool_catalog_flat",
     "parse_tool_names_copilot",

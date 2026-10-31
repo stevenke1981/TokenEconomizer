@@ -232,3 +232,45 @@ def test_a_pi_session_counts_the_prompts_on_its_active_branch(tmp_path):
         msg("x", "b", "user"), msg("y", "x", "assistant"),        # abandoned
         msg("c", "b", "user"), msg("d", "c", "toolResult"), msg("e", "d", "assistant")])
     assert trace.pi_prompt_count(p) == 2
+
+
+def test_one_read_gives_the_calls_and_their_directories(tmp_path, monkeypatch):
+    """`load_trajectory_with_cwds` returns exactly what the two readers return separately,
+    from a single open of the log -- the micro-skill observer reads both for every session."""
+    import builtins
+    p = str(tmp_path / "t.jsonl")
+    write_claude_transcript(p, [
+        ("bash", {"command": "cd tests && python runtests.py"}, "ok"),
+        ("edit", {"file_path": "pkg/mod.py"}, "ok")])
+    expected = (trace.load_trajectory(p), trace.call_cwds(p))
+    opened, real_open = [], builtins.open
+
+    def counting_open(file, *a, **k):
+        if str(file) == p:
+            opened.append(file)
+        return real_open(file, *a, **k)
+
+    monkeypatch.setattr(builtins, "open", counting_open)
+    assert trace.load_trajectory_with_cwds(p) == expected
+    assert len(opened) == 1
+    assert trace.load_trajectory_with_cwds(str(tmp_path / "missing.jsonl")) == ([], [])
+
+
+def test_one_read_aligns_directories_on_codex_and_copilot_logs(tmp_path):
+    """Codex runs each command afresh (no directory); Copilot's calls start where the session
+    did."""
+    import json
+    cx = str(tmp_path / "codex.jsonl")
+    write_codex_transcript(cx, [{"type": "command_execution", "command": "pytest -q",
+                                 "aggregated_output": "1 passed", "exit_code": 0}])
+    calls, cwds = trace.load_trajectory_with_cwds(cx)
+    assert len(calls) == 1 and cwds == [None]
+    cp = tmp_path / "copilot.jsonl"
+    cp.write_text("\n".join(json.dumps(e) for e in [
+        {"type": "session.start", "data": {"context": {"cwd": "/w/repo"}}},
+        {"type": "tool.execution_start", "data": {"toolCallId": "1", "toolName": "bash",
+                                                   "arguments": {"command": "ls"}}},
+        {"type": "tool.execution_complete", "data": {"toolCallId": "1", "success": True,
+                                                      "result": {"content": "a"}}}]))
+    assert trace.load_trajectory_with_cwds(str(cp)) == (
+        [("bash", {"command": "ls"}, "a", True)], ["/w/repo"])

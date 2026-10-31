@@ -15,7 +15,7 @@ import posixpath
 import re
 from dataclasses import dataclass
 
-from ..trace import call_cwds, load_trajectory, strip_rtk_prefix
+from ..trace import load_trajectory_with_cwds, strip_rtk_prefix
 from .lifecycle import edited_files, edited_pyfiles
 
 
@@ -594,8 +594,7 @@ def observe_task(transcript_path, vocab=None):
     segment as having run and leaves the others unknown (an `&&` chain may not have reached
     them)."""
     vocab = vocab or DEFAULT_VOCAB
-    calls = load_trajectory(transcript_path)
-    cwds = call_cwds(transcript_path)
+    calls, cwds = load_trajectory_with_cwds(transcript_path)
     root = next((c for c in cwds if c), None)
     top = repository_top(root)
     obs_all = []
