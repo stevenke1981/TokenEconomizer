@@ -31,20 +31,38 @@ def _is_codex_exec(lines):
     return any('"type":"item.completed"' in line.replace(" ", "") for line in lines)
 
 
+def _read_lines(path):
+    with open(path, encoding="utf-8", errors="replace") as fh:
+        return [l.strip() for l in fh if l.strip()]
+
+
+def _calls_and_cwds(lines):
+    """Both `load_trajectory` and `call_cwds` over already-read lines, parsing them once."""
+    if _is_codex_exec(lines):
+        calls = codex_exec_calls(lines)
+        return calls, [None] * len(calls)
+    if any('"tool_use"' in line or '"type": "assistant"' in line or '"type":"assistant"' in line
+           for line in lines):
+        full = claude_calls(lines)
+        return [c[:4] for c in full], [c[4] for c in full]
+    calls = copilot_event_calls(lines)
+    return calls, [copilot_session_cwd(lines)] * len(calls)
+
+
+def load_trajectory_with_cwds(path):
+    """`(load_trajectory(path), call_cwds(path))` from one read and one parse of the log, for a
+    caller that needs both."""
+    if not os.path.exists(path):
+        return [], []
+    return _calls_and_cwds(_read_lines(path))
+
+
 def load_trajectory(path):
     """Ordered [(tool_name, args, result_text, success)] over a saved session log.
 
     The schema is sniffed from the lines: Codex emits completed items, Claude Code emits message
     envelopes carrying `tool_use` blocks, and anything else is read as Copilot events."""
-    if not os.path.exists(path):
-        return []
-    lines = [l.strip() for l in open(path, encoding="utf-8", errors="replace") if l.strip()]
-    if _is_codex_exec(lines):
-        return codex_exec_calls(lines)
-    if any('"tool_use"' in line or '"type": "assistant"' in line or '"type":"assistant"' in line
-           for line in lines):
-        return [c[:4] for c in claude_calls(lines)]
-    return copilot_event_calls(lines)
+    return load_trajectory_with_cwds(path)[0]
 
 
 def call_cwds(path):
@@ -54,16 +72,7 @@ def call_cwds(path):
     runs in `tests/`. Codex runs each command afresh. Copilot's log records only where the
     session started, and that is where its calls are read as starting: models there type
     `cd <that directory> && ...` before every command, which is then the plain form."""
-    calls = load_trajectory(path)
-    if not calls or not os.path.exists(path):
-        return [None] * len(calls)
-    lines = [l.strip() for l in open(path, encoding="utf-8", errors="replace") if l.strip()]
-    if _is_codex_exec(lines):
-        return [None] * len(calls)
-    cwds = [c[4] for c in claude_calls(lines)]
-    if len(cwds) == len(calls):
-        return cwds
-    return [copilot_session_cwd(lines)] * len(calls)
+    return load_trajectory_with_cwds(path)[1]
 
 
 def tool_usage(path):
